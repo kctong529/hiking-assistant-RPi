@@ -1,10 +1,9 @@
 import sqlite3
-
-import hike
 import threading
-import os
-DB_FILE_NAME = 'sessions.db'
-LOG_FILE_NAME = 'hiking_log.txt'
+import hike
+
+DB_FILE_NAME = "sessions.db"
+LOG_FILE_NAME = "hiking_log.txt"
 
 DB_SESSION_TABLE = {
     "name": "sessions",
@@ -18,64 +17,44 @@ DB_SESSION_TABLE = {
     ]
 }
 
-# lock object so multithreaded use of the same
-# HubDatabase object 
 
 class HubDatabase:
-    """Hiking sesssion database interface class.
-
-    An object of this class enables easy retreival and management of the
-    hiking database content. If the database does not exist, the instantiation
-    of this class will create the database inside `DB_FILE_NAME` file.
-    
-    Arguments:
-        lock: lock object so multithreaded use of the same HubDatabase object
-              is safe. sqlite3 does not allow the same cursor object to be
-              used concurrently.
-        con: sqlite3 connection object
-        cur: sqlite3 cursor object
-    """
-
     lock = threading.Lock()
 
     def __init__(self):
         self.con = sqlite3.connect(DB_FILE_NAME, check_same_thread=False)
         self.cur = self.con.cursor()
 
-        for t in [DB_SESSION_TABLE]:
-            create_table_sql = f"create table if not exists {t['name']} ({', '.join(t['cols'])})"
-            self.cur.execute(create_table_sql)
-
+        create_table_sql = (
+            f"CREATE TABLE IF NOT EXISTS {DB_SESSION_TABLE['name']} "
+            f"({', '.join(DB_SESSION_TABLE['cols'])})"
+        )
+        self.cur.execute(create_table_sql)
         self.con.commit()
 
     def save(self, s: hike.HikeSession):
-        sessions = self.get_sessions()
-
-        self.cur.execute(
-            f"""INSERT INTO {DB_SESSION_TABLE['name']}
-            (session_id, start_time, end_time, steps, distance_m, duration_s)
-            VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                s.session_id,
-                s.start_time,
-                s.end_time,
-                s.steps,
-                s.distance_m,
-                s.duration_s,
-            )
-        )
-        
         try:
             self.lock.acquire()
 
             try:
-                self.cur.execute(f"INSERT INTO {DB_SESSION_TABLE['name']} VALUES ({s.id}, {s.km}, {s.steps}, {s.kcal})")
+                self.cur.execute(
+                    f"""INSERT INTO {DB_SESSION_TABLE['name']}
+                    (session_id, start_time, end_time, steps, distance_m, duration_s)
+                    VALUES (?, ?, ?, ?, ?, ?)""",
+                    (
+                        s.session_id,
+                        s.start_time,
+                        s.end_time,
+                        s.steps,
+                        s.distance_m,
+                        s.duration_s,
+                    ),
+                )
+                self.con.commit()
             except sqlite3.IntegrityError:
                 print("WARNING: Session ID already exists in database! Aborting saving current session.")
+                return
 
-
-            self.con.commit()
-            
             try:
                 with open(LOG_FILE_NAME, "a") as f:
                     log_entry = (
@@ -83,16 +62,18 @@ class HubDatabase:
                         f"{s.steps} | {s.distance_m} | {s.duration_s}\n"
                     )
                     f.write(log_entry)
-            except Exception as e:
-                print(f"Error writing file")
+            except Exception:
+                print("Error writing file")
         finally:
             self.lock.release()
 
-    def delete(self, session_id: int):
+    def delete(self, session_id: str):
         try:
             self.lock.acquire()
-
-            self.cur.execute(f"DELETE FROM {DB_SESSION_TABLE['name']} WHERE session_id = {session_id}")
+            self.cur.execute(
+                f"DELETE FROM {DB_SESSION_TABLE['name']} WHERE session_id = ?",
+                (session_id,),
+            )
             self.con.commit()
         finally:
             self.lock.release()
@@ -100,22 +81,29 @@ class HubDatabase:
     def get_sessions(self) -> list[hike.HikeSession]:
         try:
             self.lock.acquire()
-            rows = self.cur.execute(f"SELECT * FROM {DB_SESSION_TABLE['name']}").fetchall()
+            rows = self.cur.execute(
+                f"SELECT * FROM {DB_SESSION_TABLE['name']}"
+            ).fetchall()
         finally:
             self.lock.release()
 
-        return list(map(lambda r: hike.from_list(r), rows))
+        return [hike.from_list(r) for r in rows]
 
-    def get_session(self, session_id: int) -> hike.HikeSession:
+    def get_session(self, session_id: str) -> hike.HikeSession | None:
         try:
             self.lock.acquire()
-            rows = self.cur.execute(f"SELECT * FROM {DB_SESSION_TABLE['name']} WHERE session_id = {session_id}").fetchall()
+            rows = self.cur.execute(
+                f"SELECT * FROM {DB_SESSION_TABLE['name']} WHERE session_id = ?",
+                (session_id,),
+            ).fetchall()
         finally:
             self.lock.release()
+
+        if not rows:
+            return None
 
         return hike.from_list(rows[0])
 
-
-    def __del__(self):
+    def close(self):
         self.cur.close()
         self.con.close()
