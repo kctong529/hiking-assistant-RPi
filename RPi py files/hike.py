@@ -1,18 +1,13 @@
-class HikeSession:
-    session_id = ""
-    start_time = ""
-    end_time = ""
-    steps = 0
-    distance_m = 0
-    duration_s = 0
+from dataclasses import dataclass
 
-    def __repr__(self):
-        return (
-            f"HikeSession{{session_id={self.session_id}, "
-            f"start_time={self.start_time}, end_time={self.end_time}, "
-            f"steps={self.steps}, distance_m={self.distance_m}, "
-            f"duration_s={self.duration_s}}}"
-        )
+@dataclass
+class HikeSession:
+    session_id: str = ""
+    start_time: str = ""
+    end_time: str = ""
+    steps: int = 0
+    distance_m: int = 0
+    duration_s: int = 0
 
 def to_list(s: HikeSession) -> list:
     return [

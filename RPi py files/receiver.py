@@ -5,8 +5,25 @@ import hike
 import db
 import bt
 
+from datetime import datetime, timedelta
+
 hubdb = db.HubDatabase()
 hubbt = bt.HubBluetooth()
+
+
+def apply_receiver_timestamps(
+        session: hike.HikeSession,
+        received_at: datetime | None = None
+    ) -> hike.HikeSession:
+    if received_at is None:
+        received_at = datetime.now()
+
+    duration_s = max(int(session.duration_s), 0)
+    start_at = received_at - timedelta(seconds=duration_s)
+
+    session.end_time = received_at.isoformat(timespec="seconds")
+    session.start_time = start_at.isoformat(timespec="seconds")
+    return session
 
 def process_sessions(sessions: list[hike.HikeSession]):
     """Callback function to process sessions.
@@ -18,6 +35,7 @@ def process_sessions(sessions: list[hike.HikeSession]):
     """
 
     for s in sessions:
+        apply_receiver_timestamps(s)
         hubdb.save(s)
 
 def main():
