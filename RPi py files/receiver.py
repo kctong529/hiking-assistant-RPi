@@ -1,6 +1,3 @@
-import time
-import sqlite3
-import json
 import hike
 import db
 import bt
@@ -20,9 +17,11 @@ def apply_receiver_timestamps(
 
     duration_s = max(int(session.duration_s), 0)
     start_at = received_at - timedelta(seconds=duration_s)
+    received_iso = received_at.isoformat(timespec="seconds")
 
-    session.end_time = received_at.isoformat(timespec="seconds")
+    session.end_time = received_iso
     session.start_time = start_at.isoformat(timespec="seconds")
+    session.created_at = received_iso
     return session
 
 def process_sessions(sessions: list[hike.HikeSession]):

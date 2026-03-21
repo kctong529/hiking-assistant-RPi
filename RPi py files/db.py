@@ -1,8 +1,12 @@
 import sqlite3
 import threading
 import hike
+import os
+from dotenv import load_dotenv
 
-DB_FILE_NAME = "sessions.db"
+load_dotenv()
+
+DB_FILE_NAME = os.environ.get("HIKING_DB_PATH", "sessions.db")
 LOG_FILE_NAME = "hiking_log.txt"
 
 DB_SESSION_TABLE = {
@@ -14,6 +18,7 @@ DB_SESSION_TABLE = {
         "steps integer",
         "distance_m integer",
         "duration_s integer",
+        "created_at text",
     ]
 }
 
@@ -32,6 +37,7 @@ class HubDatabase:
         self.cur.execute(create_table_sql)
         self.con.commit()
 
+    
     def save(self, s: hike.HikeSession):
         try:
             self.lock.acquire()
@@ -39,8 +45,8 @@ class HubDatabase:
             try:
                 self.cur.execute(
                     f"""INSERT INTO {DB_SESSION_TABLE['name']}
-                    (session_id, start_time, end_time, steps, distance_m, duration_s)
-                    VALUES (?, ?, ?, ?, ?, ?)""",
+                    (session_id, start_time, end_time, steps, distance_m, duration_s, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                     (
                         s.session_id,
                         s.start_time,
@@ -48,6 +54,7 @@ class HubDatabase:
                         s.steps,
                         s.distance_m,
                         s.duration_s,
+                        s.created_at,
                     ),
                 )
                 self.con.commit()
@@ -59,7 +66,7 @@ class HubDatabase:
                 with open(LOG_FILE_NAME, "a") as f:
                     log_entry = (
                         f"{s.session_id} | {s.start_time} | {s.end_time} | "
-                        f"{s.steps} | {s.distance_m} | {s.duration_s}\n"
+                        f"{s.steps} | {s.distance_m} | {s.duration_s} | {s.created_at}\n"
                     )
                     f.write(log_entry)
             except Exception:

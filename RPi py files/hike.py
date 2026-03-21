@@ -8,6 +8,7 @@ class HikeSession:
     steps: int = 0
     distance_m: int = 0
     duration_s: int = 0
+    created_at: str = ""
 
 def to_list(s: HikeSession) -> list:
     return [
@@ -17,6 +18,7 @@ def to_list(s: HikeSession) -> list:
         s.steps,
         s.distance_m,
         s.duration_s,
+        s.created_at,
     ]
 
 def from_list(l: list) -> HikeSession:
@@ -27,4 +29,5 @@ def from_list(l: list) -> HikeSession:
     s.steps = l[3]
     s.distance_m = l[4]
     s.duration_s = l[5]
+    s.created_at = l[6]
     return s
