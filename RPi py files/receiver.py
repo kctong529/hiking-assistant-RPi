@@ -2,42 +2,33 @@ import hike
 import db
 import bt
 
-from datetime import datetime
-
 hubdb = db.HubDatabase()
 hubbt = bt.HubBluetooth()
 
 
-def normalize_session_timestamps(
-        session: hike.HikeSession,
-        received_at: datetime | None = None
-    ) -> hike.HikeSession:
-    if received_at is None:
-        received_at = datetime.now()
-
-    # Keep the watch-provided timestamps.
-    # They should now be mostly correct once the watch has been time-synced.
-    # Only set created_at on the receiver side to record when the session
-    # was received and stored by the Raspberry Pi.
-    session.created_at = received_at.isoformat(timespec="seconds")
-    return session
-
-
 def process_sessions(sessions: list[hike.HikeSession]):
-    """Callback function to process sessions.
+    """Persist synchronized sessions into the database.
 
-    Saves the session into the database.
+    The Bluetooth layer is responsible for parsing incoming protocol messages
+    and attaching receiver-side metadata such as `created_at`. This function
+    only stores the received sessions in the hub database.
 
     Args:
-        sessions: list of `hike.HikeSession` objects to process
+        sessions: List of `hike.HikeSession` objects received from the watch.
     """
-    for s in sessions:
-        normalize_session_timestamps(s)
-        hubdb.save(s)
+    for session in sessions:
+        hubdb.save(session)
 
 
 def main():
+    """Run the Bluetooth receiver loop until interrupted.
+
+    Bluetooth connection loss, timeouts, and watch reboots are handled inside
+    `bt.py`, so this loop only needs to wait for a connection and trigger
+    synchronization repeatedly.
+    """
     print("Starting Bluetooth receiver.")
+
     try:
         while True:
             hubbt.wait_for_connection()
@@ -45,12 +36,7 @@ def main():
 
     except KeyboardInterrupt:
         print("CTRL+C Pressed. Shutting down the server...")
-
-    except Exception as e:
-        print("Unexpected shutdown...")
-        print(f"ERROR: {e}")
-        hubbt.sock.close()
-        raise e
+        hubbt.close_connection()
 
 
 if __name__ == "__main__":
